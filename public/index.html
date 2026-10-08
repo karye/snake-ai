@@ -26,80 +26,64 @@
 
 <header class="top">
   <h1>🐍 Snake AI Lab</h1>
-  <p class="sub">You are not playing the game — you are the <b>trainer</b>. Tune the four reward
-  numbers, watch the learning curve climb, then save your result.</p>
+  <p class="sub">You are not playing the game — you are the <b>trainer</b>. Each level unlocks
+  a different part of the algorithm. You pass a level by <b>making the worm do something
+  provable</b> — a crash on purpose, a safe circle that refuses apples — not by scoring high.</p>
   <div class="class-record" id="class-record">Class record: –</div>
   <div class="who" id="who">Not signed in.</div>
   <div class="notice" id="notice">Sign in to open the lab.</div>
 </header>
 
-<!-- ======================= 2. CONTROL PANEL =========================== -->
-<section class="card control">
-  <h2>2 · 🎮 Control panel <span class="dim">(these are the only numbers you may change)</span></h2>
+<div class="cols">
 
-  <div class="knobs">
-    <label class="knob"><span class="dim">🍎 Carrot — how glad of food</span>
-      <input id="sl-mat" type="range" min="0" max="100" step="1" value="20">
-      <span class="val" id="v-mat">20</span>
-    </label>
-    <label class="knob"><span class="dim">💥 Whip — how much a crash hurts</span>
-      <input id="sl-krock" type="range" min="-300" max="0" step="5" value="-100">
-      <span class="val" id="v-krock">-100</span>
-    </label>
-    <label class="knob"><span class="dim">⏱ Life cost — price of each step</span>
-      <input id="sl-step" type="range" min="-10" max="0" step="1" value="-1">
-      <span class="val" id="v-step">-1</span>
-    </label>
-    <label class="knob"><span class="dim">🎲 Curiosity (ε) — how often it guesses</span>
-      <input id="sl-eps" type="range" min="0" max="1" step="0.01" value="0.1">
-      <span class="val" id="v-eps">0.10</span>
-    </label>
-  </div>
-
-  <div class="extras">
-    <label>🗺 Board size
-      <select id="grid-size"><option value="12">12 × 12</option><option value="6">6 × 6 (tight)</option></select>
-    </label>
-    <label>⚡ Speed
-      <select id="speed"><option value="1">🐰 slow (see it think)</option><option value="2" selected>▶ normal</option><option value="3">🚀 turbo (train fast)</option></select>
-    </label>
-  </div>
-
-  <pre class="code" id="code">MAT_REWARD    = 20
-CRASH_PENALTY = -100
-STEP_COST     = -1
-EXPLORATION   = 0.10</pre>
-
+<!-- ================= LEFT: THE ONLY KNOBS THIS LEVEL ALLOWS ========== -->
+<section class="card panel">
+  <h2>1 · Control panel <span class="dim">(locked knobs are greyed)</span></h2>
+  <div class="level-card" id="level-card"></div>
+  <div class="knobs" id="knobs"></div>
+  <pre class="code" id="code"></pre>
   <div class="presets">
-    <button class="btn" id="p-plain">🥕 Everyday hero</button>
-    <button class="btn" id="p-fast">⚡ Speed demon</button>
-    <button class="btn" id="p-turtle">🐢 Safety driver</button>
-    <button class="btn" id="p-chaos">🤡 Chaos pilot</button>
-    <button class="btn" id="p-clear">🧠 Wipe the brain (start over)</button>
+    <button class="btn" id="p-clear">🧠 Wipe the brain (this session)</button>
   </div>
 </section>
 
-<!-- ============================ 3. ARENA ============================== -->
+<!-- ================= MIDDLE: THE ENGINE ============================== -->
 <section class="card arena">
-  <h2>3 · The arena <span class="dim">(one session = one brain, the tabs switch between them)</span></h2>
+  <h2>2 · The engine</h2>
   <div class="sessions" id="sessions"></div>
-  <div class="arena-row">
-    <canvas id="board" width="432" height="432"></canvas>
-    <div class="side">
-      <div class="status" id="status">Game: 1 | Score: 0 | Best: 0 | Brain: 0</div>
-      <canvas id="curve" class="chart" width="432" height="150"></canvas>
-      <pre class="log" id="log">[learning] waiting for game 10 ...</pre>
-    </div>
+  <canvas id="board" width="432" height="432"></canvas>
+  <div class="status" id="status">S1 · game 1</div>
+  <div class="extras">
+    <label>⚡ Speed
+      <select id="speed">
+        <option value="1">🐰 slow (see it think)</option>
+        <option value="2" selected>▶ normal</option>
+        <option value="3">🚀 turbo</option>
+        <option value="4">⚡ blitz — no drawing, thousands of games</option>
+      </select>
+    </label>
   </div>
   <div class="actions">
     <button class="btn" id="btn-start">▶ Start / pause training</button>
+    <button class="btn" id="btn-new">＋ New session</button>
     <button class="btn" id="btn-save">💾 Save my result</button>
     <button class="btn" id="btn-exam">🏫 Final exam (3 games, ε = 0)</button>
     <button class="btn" id="btn-signin">🪪 Sign in as someone else</button>
   </div>
 </section>
 
-<!-- ========================= 4. LEADERBOARD ========================== -->
+<!-- ================= RIGHT: THE THEORY ============================= -->
+<section class="card analysis">
+  <h2>3 · Analysis <span class="dim">(what the theory says, live)</span></h2>
+  <canvas id="avg" width="432" height="200"></canvas>
+  <canvas id="eps" width="432" height="120"></canvas>
+  <div class="evidence" id="evidence"></div>
+  <pre class="log" id="log"></pre>
+</section>
+
+</div>
+
+<!-- ========================= LEADERBOARD =========================== -->
 <section class="card board">
   <h2>4 · Class leaderboard</h2>
   <div class="lb-wrap"><div id="lb-training">No results yet — be the first!</div></div>
@@ -107,9 +91,10 @@ EXPLORATION   = 0.10</pre>
 </section>
 
 <footer class="foot">
-  <p>Q-learning, 3 actions (straight / right / left). Training stops after 100 games —
-  that is the number that counts. Each session keeps its own brain, so two recipes can
-  be trained side by side and their curves compared.</p>
+  <p>Q-learning on a 12 × 12 board, 3 actions (straight / right / left). ε is annealed per
+  episode: ε = max(ε_floor, ε_start · decay^episode). Progression is gated on
+  <b>demonstrated behaviour</b>, because a worm that drives straight into the wall is a
+  perfectly good answer when the reward function is built wrong.</p>
 </footer>
 
 </div><!-- /app -->

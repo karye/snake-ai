@@ -4,10 +4,14 @@
  * and loaded by the browser (loaded first by index.html).
  *
  * A SESSION is one recipe + one brain + one game:
- *      const S = ENG.newSession({ mat: 60, eps: 0.05 });
- *      S = { cfg, Q, G, state }
- * Every function below takes the session, so the UI can keep several of them
- * side by side (Session 1 vs Session 2 — which recipe learns better?).
+ *      const S = ENG.newSession({ mat: 60, epsDecay: 0.99 });
+ *      S = { cfg, Q, G, state, eps, episodes, cause }
+ *
+ * What the class can now reach for (cfg):
+ *   mat / krock / step   the classic three rewards
+ *   toward / away        reward for closing / opening the distance to the apple
+ *   epsStart / epsDecay / epsMin   ε is annealed per episode, not constant
+ *   alpha / gamma        the update rule, exposed as knobs
  *
  * State  = (danger straight, danger right, danger left, dir, apple direction)
  * Actions= 0 straight, 1 turn right, 2 turn left
@@ -18,16 +22,17 @@ const ENG = {
     ALPHA: 0.2,
     GAMMA: 0.9,
     ACTIONS: [0, 1, 2],
-    CFG: { mat: 20, krock: -100, step: -1, eps: 0.1, grid: 12 },   // the default recipe
+    CFG: {
+        mat: 20, krock: -100, step: -1, toward: 0, away: 0,
+        epsStart: 0.1, epsDecay: 1.0, epsMin: 0.0,
+        alpha: 0.2, gamma: 0.9,
+        grid: 12,
+    },
 };
 
 ENG.newSession = function (cfg) {
-    const S = {
-        cfg: { ...ENG.CFG, ...(cfg || {}) },
-        Q: new Map(),          // "state|action" -> value. Q.size = "Brain: N"
-        G: null,
-        state: null,
-    };
+    const S = { cfg: { ...ENG.CFG, ...(cfg || {}) }, Q: new Map(), G: null, state: null, eps: 0, episodes: 0, cause: null };
+    S.eps = S.cfg.epsStart;
     ENG.reset(S);
     return S;
 };
@@ -45,6 +50,7 @@ ENG.reset = function (S) {
     };
     S.G.apple = ENG.newApple(S);
     S.state = ENG.stateOf(S);
+    S.cause = null;
 };
 
 ENG.newApple = function (S) {
@@ -87,23 +93,31 @@ ENG.updateQ = function (S, s, a, reward, ns) {
     }
     const key = s + "|" + a;
     const cur = S.Q.has(key) ? S.Q.get(key) : 0.0;
-    S.Q.set(key, cur + ENG.ALPHA * (reward + ENG.GAMMA * maxNext - cur));
+    S.Q.set(key, cur + S.cfg.alpha * (reward + S.cfg.gamma * maxNext - cur));
 };
 
-// one step -> [reward, done]
+// one step -> [reward, done]; S.cause says WHY the episode ended
 ENG.step = function (S, action) {
     const G = S.G;
     const [dx, dy] = G.dir;
     if (action === 1) G.dir = [-dy, dx];
     else if (action === 2) G.dir = [dy, -dx];
 
+    const d0 = Math.abs(G.apple[0] - G.head[0]) + Math.abs(G.apple[1] - G.head[1]);
+
     G.head = [G.head[0] + G.dir[0], G.head[1] + G.dir[1]];
     G.starve += 1;
     G.alive += 1;
 
     const g = S.cfg.grid;
-    if (G.head[0] < 0 || G.head[0] >= g || G.head[1] < 0 || G.head[1] >= g ||
-        G.body.some((s) => s[0] === G.head[0] && s[1] === G.head[1]) || G.starve > 100) {
+    const out = G.head[0] < 0 || G.head[0] >= g || G.head[1] < 0 || G.head[1] >= g ||
+        G.body.some((s) => s[0] === G.head[0] && s[1] === G.head[1]);
+    if (out) {
+        S.cause = "crash";
+        return [S.cfg.krock, true];
+    }
+    if (G.starve > 100) {
+        S.cause = "starve";
         return [S.cfg.krock, true];
     }
 
@@ -116,11 +130,14 @@ ENG.step = function (S, action) {
         return [S.cfg.mat, false];
     }
     G.body.pop();
-    return [S.cfg.step, false];
+
+    const d1 = Math.abs(G.apple[0] - G.head[0]) + Math.abs(G.apple[1] - G.head[1]);
+    const nudge = d1 < d0 ? S.cfg.toward : d1 > d0 ? S.cfg.away : 0;
+    return [S.cfg.step + nudge, false];
 };
 
 ENG.pickAction = function (S) {
-    if (Math.random() < S.cfg.eps) return ENG.ACTIONS[(Math.random() * 3) | 0];
+    if (Math.random() < S.eps) return ENG.ACTIONS[(Math.random() * 3) | 0];
     const q = ENG.ACTIONS.map((a) => ENG.qget(S, S.state, a));
     const top = Math.max(...q);
     const good = ENG.ACTIONS.filter((a, i) => q[i] === top);
@@ -135,7 +152,9 @@ ENG.tick = function (S) {
     ENG.updateQ(S, S.state, action, reward, ns);
     S.state = ns;
     if (!done) return { done: false };
-    const out = { done: true, score: S.G.score, steps: S.G.alive };
+    const out = { done: true, score: S.G.score, steps: S.G.alive, cause: S.cause, eps: S.eps };
+    S.episodes += 1;
+    S.eps = Math.max(S.cfg.epsMin, S.cfg.epsStart * Math.pow(S.cfg.epsDecay, S.episodes));
     ENG.reset(S);
     return out;
 };

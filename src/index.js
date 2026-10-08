@@ -7,7 +7,8 @@
  *   GET  /app.css /app.js      -> static assets
  *   GET  /api/leaderboard      -> leaderboard (JSON)
  *   POST /api/register         -> {name}                        registration
- *   POST /api/submit           -> {name, config, record, ...}   training result (100 games)
+ *   POST /api/level            -> {name, level, evidence}       behaviour gate cleared
+ *   POST /api/submit           -> {name, config, record, ...}   training result
  *   POST /api/exam             -> {name, config, matches[3]}    final exam (3 games, eps = 0)
  *
  * State lives next to the app in data/records.json.
@@ -100,9 +101,15 @@ function touchStudent(name) {
             attempts: 0,
             best: null,
             exam: null,
+            levels: {},
         };
     }
     return records.students[name];
+}
+
+function levelReached(s) {
+    const got = Object.keys(s.levels || {}).map(Number).filter((n) => n >= 1 && n <= 3);
+    return got.length ? Math.max(...got) : 0;
 }
 
 function handleRegister(body) {
@@ -111,6 +118,20 @@ function handleRegister(body) {
     touchStudent(name);
     saveRecords();
     return json({ ok: true, name });
+}
+
+function handleLevel(body) {
+    const name = cleanName(body && body.name);
+    if (!name) return json({ ok: false, error: "Send a `name`." }, 400);
+    const n = Math.round(clampNum(body && body.level, 1, 3, 0));
+    if (n < 1) return json({ ok: false, error: "Send `level` (1..3)." }, 400);
+    const s = touchStudent(name);
+    const evidence = (Array.isArray(body && body.evidence) ? body.evidence : [])
+        .slice(0, 4)
+        .map((g) => cleanLabel(g));
+    s.levels[n] = { at: new Date().toISOString(), evidence };
+    saveRecords();
+    return json({ ok: true, name, level: n, reached: levelReached(s) });
 }
 
 function handleSubmit(body) {
@@ -123,11 +144,12 @@ function handleSubmit(body) {
     const avg = Number(clampNum(body && body.avg, -999, 999, 0).toFixed(2));
     const brain = Math.round(clampNum(body && body.brain, 0, 100000, 0));
     const bestSteps = Math.round(clampNum(body && body.bestSteps, 0, 100000, 0));
+    const lvl = Math.round(clampNum(body && body.level, 0, 3, 0));
     const label = cleanLabel(body && body.label);
 
     s.attempts += 1;
     if (!s.best || record > s.best.record || (record === s.best.record && avg > s.best.avg)) {
-        s.best = { record, avg, games, brain, bestSteps, label, config: cfg, at: new Date().toISOString() };
+        s.best = { record, avg, games, brain, bestSteps, label, level: lvl, config: cfg, at: new Date().toISOString() };
     }
     saveRecords();
     return json({ ok: true, name, best: s.best, attempts: s.attempts });
@@ -154,7 +176,7 @@ function leaderboard() {
     const training = list
         .filter((s) => s.best)
         .sort((a, b) => b.best.record - a.best.record || b.best.avg - a.best.avg)
-        .map((s, i) => ({ rank: i + 1, name: s.name, attempts: s.attempts, ...s.best }));
+        .map((s, i) => ({ rank: i + 1, name: s.name, level: levelReached(s), attempts: s.attempts, ...s.best }));
     const exam = list
         .filter((s) => s.exam)
         .sort((a, b) => b.exam.total - a.exam.total)
@@ -222,6 +244,7 @@ serve({
 
             const body = await readJsonBody(req);
             if (url === "/api/register") return handleRegister(body);
+            if (url === "/api/level") return handleLevel(body);
             if (url === "/api/submit") return handleSubmit(body);
             if (url === "/api/exam") return handleExam(body);
             return json({ ok: false, error: `unknown api ${url}` }, 404);

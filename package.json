@@ -5,7 +5,10 @@
   "scripts": {
     "start": "bun run src/index.js",
     "test": "bun test/engine-test.js",
-    "test:ui": "bun test/loop-test.js"
+    "test:ui": "bun test/loop-test.js",
+    "test:gate": "bun test/gate-test.js",
+    "test:levels": "bun test/levels-test.js",
+    "calibrate": "bun test/calibrate.js"
   },
   "dependencies": {}
 }

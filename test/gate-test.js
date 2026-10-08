@@ -11,6 +11,7 @@ import { readFileSync } from "node:fs";
 const ctx2d = new Proxy({}, { get: (k) => (k === "canvas" ? null : () => undefined), set: () => true });
 
 const els = {};
+let body = null;
 function mkEl(id, cls = "") {
     const el = { id, value: "", textContent: "", innerHTML: "", listeners: [] };
     const set = new Set(cls.split(" ").filter(Boolean));
@@ -21,25 +22,18 @@ function mkEl(id, cls = "") {
         contains: (c) => set.has(c),
     };
     el.addEventListener = (type, fn) => el.listeners.push(fn);
+    el.parentElement = body || el;
     if (id === "board" || id === "curve") el.getContext = () => ctx2d;
     els[id] = el;
     return el;
 }
 
-[
-    ["gate", "modal"], ["reg-name", ""], ["reg-btn", "btn"], ["reg-state", "reg-state"],
-    ["who", "who"], ["notice", "notice"], ["class-record", "class-record"],
-    ["sl-mat", ""], ["sl-krock", ""], ["sl-step", ""], ["sl-eps", ""],
-    ["grid-size", ""], ["speed", ""], ["v-mat", "val"], ["v-krock", "val"],
-    ["v-step", "val"], ["v-eps", "val"], ["code", "code"],
-    ["p-plain", "btn"], ["p-fast", "btn"], ["p-turtle", "btn"], ["p-chaos", "btn"], ["p-clear", "btn"],
-    ["board", ""], ["curve", "chart"], ["status", "status"], ["log", "log"],
-    ["btn-start", "btn"], ["btn-save", "btn"], ["btn-exam", "btn"], ["btn-signin", "btn"],
-    ["lb-training", ""], ["lb-exam", ""],
-].forEach(([id, c]) => mkEl(id, c));
+for (const id of readFileSync("public/index.html", "utf8").match(/id="([^"]+)"/g).map((s) => s.slice(4, -1)))
+    mkEl(id);
+for (const id of ["board", "avg", "eps"]) { els[id].width = 432; els[id].height = 200; els[id].getContext = () => ctx2d; }
 
-const body = mkEl("body", "locked");
-const document = { getElementById: (id) => els[id] ?? null, body };
+body = mkEl("body", "locked");
+const document = { getElementById: (id) => els[id] ?? mkEl(id), body };
 
 function click(id) {
     els[id].listeners.forEach((fn) => fn({ type: "click" }));
