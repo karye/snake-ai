@@ -1,0 +1,11 @@
+{
+  "name": "snake-ai-lab",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "bun run src/index.js",
+    "test": "bun test/engine-test.js",
+    "test:ui": "bun test/loop-test.js"
+  },
+  "dependencies": {}
+}

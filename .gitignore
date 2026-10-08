@@ -1,0 +1,7 @@
+node_modules/
+.bun/
+*.log
+.DS_Store
+
+# classroom results stay on the server, they are not part of the source
+data/records.json
